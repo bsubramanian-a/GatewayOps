@@ -5,18 +5,28 @@ import { MetricsSummary, TimeSeriesDataPoint, ServiceDistribution, DetailedMetri
 const metricsRepo = new MetricsRepository();
 
 export class MetricsService {
-  async getSummary(from?: string, to?: string): Promise<MetricsSummary> {
+  async getSummary(from?: string, to?: string, forceRefresh = false): Promise<MetricsSummary> {
     const cacheKey = `metrics:summary:${from || 'all'}:${to || 'all'}`;
-    const cached = await redis.get(cacheKey);
 
-    if (cached) {
-      return JSON.parse(cached);
+    if (!forceRefresh) {
+      const cached = await redis.get(cacheKey);
+      if (cached) {
+        return JSON.parse(cached);
+      }
     }
 
     const summary = await metricsRepo.getSummary(from, to);
-    await redis.setEx(cacheKey, 30, JSON.stringify(summary));
+    // Short TTL (10 seconds) so new traffic is reflected quickly without overwhelming the DB
+    await redis.setEx(cacheKey, 10, JSON.stringify(summary));
 
     return summary;
+  }
+
+  async invalidateCache(pattern = 'metrics:*'): Promise<void> {
+    const keys = await redis.keys(pattern);
+    if (keys.length > 0) {
+      await redis.del(keys);
+    }
   }
 
   async getRequestsOverTime(
