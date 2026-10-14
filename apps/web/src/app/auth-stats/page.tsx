@@ -8,18 +8,16 @@ import { Spinner } from '../../components/ui/Spinner';
 import { api } from '../../lib/api';
 
 export default function AuthStatsPage() {
-  const now = new Date();
-  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-  const fromDefault = thirtyDaysAgo.toISOString();
-  const toDefault = now.toISOString();
-
-  const [dateRange, setDateRange] = useState({ from: fromDefault, to: toDefault });
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
   const statsQuery = useQuery({
     queryKey: ['auth', 'stats', dateRange.from, dateRange.to],
     queryFn: async () => {
       const response = await api.get('/auth/stats', {
-        params: { from: dateRange.from, to: dateRange.to },
+        params: {
+          ...(dateRange.from ? { from: dateRange.from } : {}),
+          ...(dateRange.to ? { to: dateRange.to } : {}),
+        },
       });
       return response.data.data;
     },

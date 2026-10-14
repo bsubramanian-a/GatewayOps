@@ -13,20 +13,19 @@ import { Spinner } from '../components/ui/Spinner';
 import { api } from '../lib/api';
 
 export default function Dashboard() {
-  const now = new Date();
-  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const fromDefault = twentyFourHoursAgo.toISOString();
-  const toDefault = now.toISOString();
+  const [dateRange, setDateRange] = useState({ from: '', to: '' });
 
-  const [dateRange, setDateRange] = useState({ from: fromDefault, to: toDefault });
-
-  const summaryQuery = useDashboardMetrics(dateRange.from, dateRange.to);
+  const summaryQuery = useDashboardMetrics(dateRange.from || undefined, dateRange.to || undefined);
 
   const requestsQuery = useQuery({
     queryKey: ['metrics', 'requests-over-time', dateRange.from, dateRange.to],
     queryFn: async () => {
       const response = await api.get('/metrics/requests-over-time', {
-        params: { interval: 'hour', from: dateRange.from, to: dateRange.to },
+        params: {
+          interval: 'hour',
+          ...(dateRange.from ? { from: dateRange.from } : {}),
+          ...(dateRange.to ? { to: dateRange.to } : {}),
+        },
       });
       return response.data.data || [];
     },
@@ -36,7 +35,10 @@ export default function Dashboard() {
     queryKey: ['metrics', 'error-trends', dateRange.from, dateRange.to],
     queryFn: async () => {
       const response = await api.get('/metrics/error-trends', {
-        params: { from: dateRange.from, to: dateRange.to },
+        params: {
+          ...(dateRange.from ? { from: dateRange.from } : {}),
+          ...(dateRange.to ? { to: dateRange.to } : {}),
+        },
       });
       return response.data.data || [];
     },
@@ -46,7 +48,10 @@ export default function Dashboard() {
     queryKey: ['metrics', 'service-distribution', dateRange.from, dateRange.to],
     queryFn: async () => {
       const response = await api.get('/metrics/service-distribution', {
-        params: { from: dateRange.from, to: dateRange.to },
+        params: {
+          ...(dateRange.from ? { from: dateRange.from } : {}),
+          ...(dateRange.to ? { to: dateRange.to } : {}),
+        },
       });
       return response.data.data || [];
     },
