@@ -5,54 +5,77 @@ import { PaginationMeta } from '../dto/pagination.dto';
 
 export class LogsRepository {
   async findAll(params: LogsQueryParams & { page: number; limit: number }) {
-    const { page, limit, service, statusCode, from, to, search } = params;
+    const { page = 1, limit = 10, service, statusCode, from, to, search } = params;
 
-    let query = db('api_logs');
+    let query = db('api_logs')
+      .leftJoin('services', 'api_logs.service_id', 'services.id');
 
     if (service) {
-      const serviceRecord = await db('services').where('slug', service).first();
-      if (serviceRecord) {
-        query = query.where('service_id', serviceRecord.id);
-      }
+      query = query.where('services.slug', service);
     }
 
     if (statusCode) {
-      query = query.orWhere('status_code', statusCode);
+      const code = parseInt(statusCode.toString(), 10);
+      if (code >= 1 && code <= 9) {
+        query = query
+          .where('api_logs.status_code', '>=', code * 100)
+          .where('api_logs.status_code', '<', (code + 1) * 100);
+      } else {
+        query = query.where('api_logs.status_code', code);
+      }
     }
 
-    if (from && to) {
-      query = query.whereBetween('created_at', [from, to]);
+    let fromDate = from;
+    let toDate = to;
+
+    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+      fromDate = `${fromDate}T00:00:00.000Z`;
+    }
+    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      toDate = `${toDate}T23:59:59.999Z`;
+    }
+
+    if (fromDate && toDate) {
+      query = query.where('api_logs.created_at', '>=', fromDate).where('api_logs.created_at', '<=', toDate);
+    } else if (fromDate) {
+      query = query.where('api_logs.created_at', '>=', fromDate);
+    } else if (toDate) {
+      query = query.where('api_logs.created_at', '<=', toDate);
     }
 
     if (search) {
-      query = query.where('endpoint', 'like', `%${search}%`);
+      query = query.whereILike('api_logs.endpoint', `%${search}%`);
     }
 
-    const total = await query.clone().count('* as count').first() as any;
-    const offset = page * limit;
+    const total = await query.clone().count('api_logs.id as count').first() as any;
+    const totalCount = parseInt(total?.count || '0', 10);
+
+    const pageNumber = Math.max(1, page || 1);
+    const limitNumber = Math.max(1, limit || 10);
+    const offset = (pageNumber - 1) * limitNumber;
 
     const logs = await query
-      .orderBy('created_at', 'desc')
-      .limit(limit)
+      .select('api_logs.*', 'services.name as service_name')
+      .orderBy('api_logs.created_at', 'desc')
+      .limit(limitNumber)
       .offset(offset);
-
-    for (const log of logs) {
-      const service = await db('services').where('id', log.service_id).first();
-      (log as any).service_name = service?.name;
-    }
 
     return {
       logs: logs as ApiLog[],
       meta: {
-        page,
-        limit,
-        total: total.count,
-        pages: Math.ceil(total.count / limit),
+        page: pageNumber,
+        limit: limitNumber,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limitNumber) || 1,
       } as PaginationMeta,
     };
   }
 
   async findById(id: string): Promise<ApiLog | null> {
-    return await db('api_logs').where('id', id).first();
+    return await db('api_logs')
+      .leftJoin('services', 'api_logs.service_id', 'services.id')
+      .select('api_logs.*', 'services.name as service_name')
+      .where('api_logs.id', id)
+      .first();
   }
 }

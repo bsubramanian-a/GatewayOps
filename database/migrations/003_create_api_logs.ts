@@ -20,6 +20,8 @@ export async function up(knex: Knex) {
     table.index(['service_id']);
     table.index(['status_code']);
     table.index(['user_id']);
+    table.index(['service_id', 'created_at']);
+    table.index(['status_code', 'created_at']);
   });
 }
 
