@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useDashboardMetrics } from '../hooks/useDashboardMetrics';
 import { Card } from '../components/ui/Card';
 import { MetricCard } from '../components/dashboard/MetricCard';
 import { RequestsChart } from '../components/dashboard/RequestsChart';
@@ -19,13 +20,7 @@ export default function Dashboard() {
 
   const [dateRange, setDateRange] = useState({ from: fromDefault, to: toDefault });
 
-  const summaryQuery = useQuery({
-    queryKey: ['metrics', 'summary'],
-    queryFn: async () => {
-      const response = await api.get('/metrics/summary');
-      return response.data.data;
-    },
-  });
+  const summaryQuery = useDashboardMetrics(dateRange.from, dateRange.to);
 
   const requestsQuery = useQuery({
     queryKey: ['metrics', 'requests-over-time', dateRange.from, dateRange.to],

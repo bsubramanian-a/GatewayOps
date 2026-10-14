@@ -3,56 +3,82 @@ import { MetricsSummary, TimeSeriesDataPoint, ServiceDistribution } from '../dto
 
 export class MetricsRepository {
   async getSummary(from?: string, to?: string): Promise<MetricsSummary> {
+    let fromDate = from;
+    let toDate = to;
+
+    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+      fromDate = `${fromDate}T00:00:00.000Z`;
+    }
+    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      toDate = `${toDate}T23:59:59.999Z`;
+    }
+
     let query = db('api_logs');
-
-    if (from && to) {
-      query = query.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      query = query.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      query = query.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      query = query.where('created_at', '<=', toDate);
     }
 
-    const countResult = await query.clone().count('*').first() as any;
-    const totalRequests = countResult.count;
+    const countResult = await query.clone().count('* as count').first() as any;
+    const totalRequests = parseInt(countResult?.count || '0', 10);
 
-    let failedQuery = db('api_logs');
-    if (from && to) {
-      failedQuery = failedQuery.whereBetween('created_at', [from, to]);
+    let failedQuery = db('api_logs').where('status_code', '>=', 400);
+    if (fromDate && toDate) {
+      failedQuery = failedQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      failedQuery = failedQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      failedQuery = failedQuery.where('created_at', '<=', toDate);
     }
-    const failedResult = await failedQuery
-      .where('status_code', '>=', 400)
-      .count('*')
-      .first() as any;
-    const failedRequests = failedResult.count;
+    const failedResult = await failedQuery.count('* as count').first() as any;
+    const failedRequests = parseInt(failedResult?.count || '0', 10);
 
     const successRate = totalRequests > 0 
-      ? Math.round((totalRequests - failedRequests) / totalRequests * 100)
+      ? Math.round(((totalRequests - failedRequests) / totalRequests) * 100)
       : 100;
 
     let authFailuresQuery = db('auth_events')
-      .where('event_type', 'login_failure');
-    if (from && to) {
-      authFailuresQuery = authFailuresQuery.whereBetween('created_at', [from, to]);
+      .whereIn('event_type', ['login_failure', 'failed_login']);
+    if (fromDate && toDate) {
+      authFailuresQuery = authFailuresQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      authFailuresQuery = authFailuresQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      authFailuresQuery = authFailuresQuery.where('created_at', '<=', toDate);
     }
-    const authFailures = await authFailuresQuery.count('*').first() as any;
+    const authFailures = await authFailuresQuery.count('* as count').first() as any;
 
     let latencyQuery = db('api_logs');
-    if (from && to) {
-      latencyQuery = latencyQuery.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      latencyQuery = latencyQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      latencyQuery = latencyQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      latencyQuery = latencyQuery.where('created_at', '<=', toDate);
     }
-    const latencyResult = await latencyQuery.avg('latency_ms').first() as any;
-    const avgResponseTime = Math.round(latencyResult.avg || 0);
+    const latencyResult = await latencyQuery.avg('latency_ms as avg').first() as any;
+    const avgResponseTime = Math.round(Number(latencyResult?.avg) || 0);
 
     let violationsQuery = db('rate_limit_violations');
-    if (from && to) {
-      violationsQuery = violationsQuery.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      violationsQuery = violationsQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      violationsQuery = violationsQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      violationsQuery = violationsQuery.where('created_at', '<=', toDate);
     }
-    const violations = await violationsQuery.count('*').first() as any;
+    const violations = await violationsQuery.count('* as count').first() as any;
 
     return {
       total_requests: totalRequests,
       failed_requests: failedRequests,
       success_rate: successRate,
-      auth_failures: authFailures.count,
+      auth_failures: parseInt(authFailures?.count || '0', 10),
       avg_response_time: avgResponseTime,
-      rate_limit_violations: violations.count,
+      rate_limit_violations: parseInt(violations?.count || '0', 10),
     };
   }
 
