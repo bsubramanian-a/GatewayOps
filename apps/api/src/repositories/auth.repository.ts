@@ -4,35 +4,61 @@ import { PaginationMeta } from '../dto/pagination.dto';
 
 export class AuthRepository {
   async getStats(from?: string, to?: string): Promise<any> {
-    let successQuery = db('auth_events').where('event_type', 'login_success');
-    if (from && to) {
-      successQuery = successQuery.whereBetween('created_at', [from, to]);
-    }
-    const successResult = await successQuery.count('*').first() as any;
+    let fromDate = from;
+    let toDate = to;
 
-    let failureQuery = db('auth_events').where('event_type', 'login_failure');
-    if (from && to) {
-      failureQuery = failureQuery.whereBetween('created_at', [from, to]);
+    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
+      fromDate = `${fromDate}T00:00:00.000Z`;
     }
-    const failureResult = await failureQuery.count('*').first() as any;
+    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+      toDate = `${toDate}T23:59:59.999Z`;
+    }
+
+    let successQuery = db('auth_events').where('event_type', 'login_success');
+    if (fromDate && toDate) {
+      successQuery = successQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      successQuery = successQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      successQuery = successQuery.where('created_at', '<=', toDate);
+    }
+    const successResult = await successQuery.count('* as count').first() as any;
+
+    let failureQuery = db('auth_events').whereIn('event_type', ['login_failure', 'failed_login']);
+    if (fromDate && toDate) {
+      failureQuery = failureQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      failureQuery = failureQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      failureQuery = failureQuery.where('created_at', '<=', toDate);
+    }
+    const failureResult = await failureQuery.count('* as count').first() as any;
 
     let invalidQuery = db('auth_events').where('event_type', 'token_invalid');
-    if (from && to) {
-      invalidQuery = invalidQuery.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      invalidQuery = invalidQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      invalidQuery = invalidQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      invalidQuery = invalidQuery.where('created_at', '<=', toDate);
     }
-    const invalidResult = await invalidQuery.count('*').first() as any;
+    const invalidResult = await invalidQuery.count('* as count').first() as any;
 
     let expiredQuery = db('auth_events').where('event_type', 'token_expired');
-    if (from && to) {
-      expiredQuery = expiredQuery.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      expiredQuery = expiredQuery.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      expiredQuery = expiredQuery.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      expiredQuery = expiredQuery.where('created_at', '<=', toDate);
     }
-    const expiredResult = await expiredQuery.count('*').first() as any;
+    const expiredResult = await expiredQuery.count('* as count').first() as any;
 
     return {
-      successful_logins: successResult.count,
-      failed_logins: failureResult.count,
-      token_invalid: invalidResult.count,
-      token_expired: expiredResult.count,
+      successful_logins: parseInt(successResult?.count || '0', 10),
+      failed_logins: parseInt(failureResult?.count || '0', 10),
+      token_invalid: parseInt(invalidResult?.count || '0', 10),
+      token_expired: parseInt(expiredResult?.count || '0', 10),
     };
   }
 
