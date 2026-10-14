@@ -1,4 +1,5 @@
 import { db } from '../config/database';
+import { normalizeDateRange } from '../utils/date.utils';
 import { ApiLog } from '../types';
 import { LogsQueryParams } from '../dto/logs.dto';
 import { PaginationMeta } from '../dto/pagination.dto';
@@ -34,15 +35,7 @@ export class LogsRepository {
       }
     }
 
-    let fromDate = from;
-    let toDate = to;
-
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      fromDate = `${fromDate}T00:00:00.000Z`;
-    }
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      toDate = `${toDate}T23:59:59.999Z`;
-    }
+    const { fromDate, toDate } = normalizeDateRange(from, to);
 
     if (fromDate && toDate) {
       query = query.where('api_logs.created_at', '>=', fromDate).where('api_logs.created_at', '<=', toDate);

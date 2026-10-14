@@ -1,17 +1,10 @@
 import { db } from '../config/database';
+import { normalizeDateRange } from '../utils/date.utils';
 import { MetricsSummary, TimeSeriesDataPoint, ServiceDistribution } from '../dto/metrics.dto';
 
 export class MetricsRepository {
   async getSummary(from?: string, to?: string): Promise<MetricsSummary> {
-    let fromDate = from;
-    let toDate = to;
-
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      fromDate = `${fromDate}T00:00:00.000Z`;
-    }
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      toDate = `${toDate}T23:59:59.999Z`;
-    }
+    const { fromDate, toDate } = normalizeDateRange(from, to);
 
     let query = db('api_logs');
     if (fromDate && toDate) {
@@ -87,13 +80,18 @@ export class MetricsRepository {
     from?: string,
     to?: string,
   ): Promise<TimeSeriesDataPoint[]> {
+    const { fromDate, toDate } = normalizeDateRange(from, to);
     const truncInterval = interval === 'day' ? 'day' : 'hour';
     let query = db('api_logs')
       .select(db.raw(`DATE_TRUNC('${truncInterval}', created_at) as timestamp`))
       .count('* as value');
 
-    if (from && to) {
-      query = query.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      query = query.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      query = query.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      query = query.where('created_at', '<=', toDate);
     }
 
     const result = await query
@@ -107,13 +105,18 @@ export class MetricsRepository {
   }
 
   async getErrorTrends(from?: string, to?: string): Promise<TimeSeriesDataPoint[]> {
+    const { fromDate, toDate } = normalizeDateRange(from, to);
     let query = db('api_logs')
       .select(db.raw(`DATE_TRUNC('hour', created_at) as timestamp`))
       .count('* as value')
       .where('status_code', '>=', 400);
 
-    if (from && to) {
-      query = query.whereBetween('created_at', [from, to]);
+    if (fromDate && toDate) {
+      query = query.where('created_at', '>=', fromDate).where('created_at', '<=', toDate);
+    } else if (fromDate) {
+      query = query.where('created_at', '>=', fromDate);
+    } else if (toDate) {
+      query = query.where('created_at', '<=', toDate);
     }
 
     const result = await query
@@ -127,14 +130,19 @@ export class MetricsRepository {
   }
 
   async getServiceDistribution(from?: string, to?: string): Promise<ServiceDistribution[]> {
+    const { fromDate, toDate } = normalizeDateRange(from, to);
     let query = db('api_logs')
       .join('services', 'api_logs.service_id', 'services.id')
       .select('services.name')
       .count('api_logs.id as request_count')
       .groupBy('services.name');
 
-    if (from && to) {
-      query = query.whereBetween('api_logs.created_at', [from, to]);
+    if (fromDate && toDate) {
+      query = query.where('api_logs.created_at', '>=', fromDate).where('api_logs.created_at', '<=', toDate);
+    } else if (fromDate) {
+      query = query.where('api_logs.created_at', '>=', fromDate);
+    } else if (toDate) {
+      query = query.where('api_logs.created_at', '<=', toDate);
     }
 
     const results = await query.orderBy('request_count', 'desc');

@@ -1,17 +1,10 @@
 import { db } from '../config/database';
+import { normalizeDateRange } from '../utils/date.utils';
 import { RateLimitViolation } from '../types';
 
 export class RateLimitsRepository {
   async getSummary(from?: string, to?: string): Promise<any> {
-    let fromDate = from;
-    let toDate = to;
-
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      fromDate = `${fromDate}T00:00:00.000Z`;
-    }
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      toDate = `${toDate}T23:59:59.999Z`;
-    }
+    const { fromDate, toDate } = normalizeDateRange(from, to);
 
     let query = db('rate_limit_violations');
     if (fromDate && toDate) {
@@ -52,15 +45,7 @@ export class RateLimitsRepository {
   }
 
   async getViolations(from?: string, to?: string): Promise<RateLimitViolation[]> {
-    let fromDate = from;
-    let toDate = to;
-
-    if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      fromDate = `${fromDate}T00:00:00.000Z`;
-    }
-    if (toDate && /^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
-      toDate = `${toDate}T23:59:59.999Z`;
-    }
+    const { fromDate, toDate } = normalizeDateRange(from, to);
 
     let query = db('rate_limit_violations');
     if (fromDate && toDate) {
