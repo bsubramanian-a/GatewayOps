@@ -22,11 +22,22 @@ export default function LogsPage() {
     },
   });
 
+  const handleFilterChange = (newFilters: any) => {
+    setFilters(newFilters);
+    setPage(1);
+  };
+
   const logsQuery = useQuery({
     queryKey: ['logs', page, limit, filters],
     queryFn: async () => {
+      const activeFilters: Record<string, any> = {};
+      Object.entries(filters).forEach(([k, v]) => {
+        if (v !== '' && v !== undefined && v !== null) {
+          activeFilters[k] = v;
+        }
+      });
       const response = await api.get('/logs', {
-        params: { page, limit, ...filters },
+        params: { page, limit, ...activeFilters },
       });
       return response.data;
     },
@@ -43,7 +54,7 @@ export default function LogsPage() {
         <Spinner />
       ) : (
         <>
-          <LogFilters onFilterChange={setFilters} services={servicesQuery.data || []} />
+          <LogFilters onFilterChange={handleFilterChange} services={servicesQuery.data || []} />
           
           {logsQuery.isLoading ? (
             <Spinner />

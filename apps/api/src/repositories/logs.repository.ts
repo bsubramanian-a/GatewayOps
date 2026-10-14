@@ -11,11 +11,20 @@ export class LogsRepository {
       .leftJoin('services', 'api_logs.service_id', 'services.id');
 
     if (service) {
-      query = query.where('services.slug', service);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(service);
+      query = query.where((builder) => {
+        builder.where('services.slug', service).orWhere('services.name', service);
+        if (isUuid) {
+          builder.orWhere('services.id', service);
+        }
+      });
     }
 
     if (statusCode) {
-      const code = parseInt(statusCode.toString(), 10);
+      let code = parseInt(statusCode.toString(), 10);
+      if (code % 100 === 0 && code >= 100 && code <= 900) {
+        code = Math.floor(code / 100);
+      }
       if (code >= 1 && code <= 9) {
         query = query
           .where('api_logs.status_code', '>=', code * 100)
